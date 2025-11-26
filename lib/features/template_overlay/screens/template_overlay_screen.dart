@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:screenshot/screenshot.dart';
 import '../models/template_model.dart';
+import '../models/image_filter.dart';
 import '../services/image_picker_service.dart';
 import '../services/gallery_saver_service.dart';
 import '../services/share_service.dart';
@@ -39,6 +40,7 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
   List<File> _selectedImages = [];
   int _activeImageIndex = 0;
   List<TransformationController> _controllers = [];
+  Map<int, ImageFilter> _imageFilters = {}; // Track filter for each image
   bool _isProcessing = false;
   bool _isSaving = false;
   bool _isSharing = false;
@@ -125,6 +127,18 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
         _selectedImages.removeAt(index);
         _controllers[index].dispose();
         _controllers.removeAt(index);
+        _imageFilters.remove(index);
+        
+        // Adjust filter indices
+        final Map<int, ImageFilter> newFilters = {};
+        _imageFilters.forEach((key, value) {
+          if (key > index) {
+            newFilters[key - 1] = value;
+          } else if (key < index) {
+            newFilters[key] = value;
+          }
+        });
+        _imageFilters = newFilters;
         
         // Adjust active index if needed
         if (_selectedImages.isEmpty) {
@@ -136,6 +150,15 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
         }
       });
     }
+  }
+
+  /// Apply filter to the active image
+  void _applyFilter(ImageFilter filter) {
+    if (_selectedImages.isEmpty) return;
+    
+    setState(() {
+      _imageFilters[_activeImageIndex] = filter;
+    });
   }
 
   /// Crop the currently active image
@@ -403,29 +426,70 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
   Widget _buildEditorView() {
     return Column(
       children: [
-        // Instructions
+        
+        // Filter Selector (replacing instructions)
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppConstants.spacingMedium),
-          color: AppConstants.primaryColor.withOpacity(0.1),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: AppConstants.iconSizeSmall,
-                color: AppConstants.primaryColor,
-              ),
-              const SizedBox(width: AppConstants.spacingSmall),
-              Expanded(
-                child: Text(
-                  'Select a photo below to edit. Pinch to zoom, drag to move.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppConstants.primaryColor.withOpacity(0.9),
-                  ),
-                ),
+          height: 70,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
             ],
+          ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: ImageFilter.allFilters.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final filter = ImageFilter.allFilters[index];
+              final isSelected = _imageFilters[_activeImageIndex] == filter;
+              return GestureDetector(
+                onTap: () => _applyFilter(filter),
+                child: SizedBox(
+                  width: 50,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: isSelected 
+                              ? AppConstants.primaryColor 
+                              : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          filter.icon,
+                          color: isSelected ? Colors.white : Colors.grey.shade700,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        filter.name,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          color: isSelected 
+                              ? AppConstants.primaryColor 
+                              : Colors.grey.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
         
@@ -458,6 +522,7 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
                         children: [
                           // Render all images
                           ...List.generate(_selectedImages.length, (index) {
+                            final filter = _imageFilters[index];
                             // If active, use PhotoEditor
                             if (index == _activeImageIndex) {
                               return PhotoEditor(
@@ -465,6 +530,7 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
                                 imageFile: _selectedImages[index],
                                 controller: _controllers[index],
                                 backgroundColor: Colors.transparent,
+                                colorFilter: filter?.colorFilter,
                               );
                             }
                             // If inactive, use Transform to show the image in its last edited state
@@ -474,9 +540,12 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
                                 transform: _controllers[index].value,
                                 alignment: Alignment.topLeft,
                                 child: SizedBox.expand(
-                                  child: Image.file(
-                                    _selectedImages[index],
-                                    fit: BoxFit.contain,
+                                  child: ColorFiltered(
+                                    colorFilter: filter?.colorFilter ?? const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                                    child: Image.file(
+                                      _selectedImages[index],
+                                      fit: BoxFit.contain,
+                                    ),
                                   ),
                                 ),
                               ),

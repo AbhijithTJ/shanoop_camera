@@ -8,6 +8,7 @@ class PhotoEditor extends StatefulWidget {
   final ValueChanged<Matrix4>? onPhotoChanged;
   final TransformationController? controller;
   final Color backgroundColor;
+  final ColorFilter? colorFilter;
 
   const PhotoEditor({
     super.key,
@@ -15,6 +16,7 @@ class PhotoEditor extends StatefulWidget {
     this.onPhotoChanged,
     this.controller,
     this.backgroundColor = Colors.black,
+    this.colorFilter,
   });
 
   @override
@@ -83,10 +85,18 @@ class _PhotoEditorState extends State<PhotoEditor> {
         minScale: 0.1,
         maxScale: 5.0,
         child: SizedBox.expand(
-          child: Image.file(
-            widget.imageFile,
-            fit: BoxFit.contain, // Show full image, user can zoom to cover
-          ),
+          child: widget.colorFilter != null
+              ? ColorFiltered(
+                  colorFilter: widget.colorFilter!,
+                  child: Image.file(
+                    widget.imageFile,
+                    fit: BoxFit.contain, // Show full image, user can zoom to cover
+                  ),
+                )
+              : Image.file(
+                  widget.imageFile,
+                  fit: BoxFit.contain, // Show full image, user can zoom to cover
+                ),
         ),
       ),
     );
