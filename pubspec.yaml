@@ -124,6 +124,14 @@ flutter:
           weight: 300
         - asset: assets/fonts/PlaywriteCZ-wght400.ttf
           weight: 400
+    - family: Roboto Condensed
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-wght300.ttf
+          weight: 300
+        - asset: assets/fonts/RobotoCondensed-wght400.ttf
+          weight: 400
+        - asset: assets/fonts/RobotoCondensed-wght700.ttf
+          weight: 700
   #   - family: Schyler
   #     fonts:
   #       - asset: fonts/Schyler-Regular.ttf

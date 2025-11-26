@@ -16,6 +16,7 @@ class MyApp extends StatelessWidget {
       title: 'Template Overlay App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        fontFamily: 'Roboto Condensed',
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppConstants.primaryColor,
         ),
