@@ -141,6 +141,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   child: const Text(
                     'Vintage Fiesta',
                     style: TextStyle(
+                      fontFamily: 'Playwrite CZ',
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -158,6 +159,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   child: Text(
                     'Your memories, stylized.',
                     style: TextStyle(
+                      fontFamily: 'Playwrite CZ',
                       fontSize: 14,
                       color: Colors.white.withOpacity(0.9),
                       letterSpacing: 1,
