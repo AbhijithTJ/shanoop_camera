@@ -261,6 +261,48 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
     }
   }
 
+  /// Get the current scale of the active image
+  double _getCurrentScale() {
+    if (_selectedImages.isEmpty || _activeImageIndex >= _controllers.length) {
+      return 1.0;
+    }
+    return _controllers[_activeImageIndex].value.getMaxScaleOnAxis();
+  }
+
+  /// Zoom in the active image
+  void _zoomIn() {
+    if (_selectedImages.isEmpty || _activeImageIndex >= _controllers.length) {
+      return;
+    }
+    final Matrix4 matrix = _controllers[_activeImageIndex].value.clone();
+    matrix.scale(1.2);
+    setState(() {
+      _controllers[_activeImageIndex].value = matrix;
+    });
+  }
+
+  /// Zoom out the active image
+  void _zoomOut() {
+    if (_selectedImages.isEmpty || _activeImageIndex >= _controllers.length) {
+      return;
+    }
+    final Matrix4 matrix = _controllers[_activeImageIndex].value.clone();
+    matrix.scale(0.8);
+    setState(() {
+      _controllers[_activeImageIndex].value = matrix;
+    });
+  }
+
+  /// Reset the active image view
+  void _resetView() {
+    if (_selectedImages.isEmpty || _activeImageIndex >= _controllers.length) {
+      return;
+    }
+    setState(() {
+      _controllers[_activeImageIndex].value = Matrix4.identity();
+    });
+  }
+
   /// Show error snackbar
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -404,84 +446,146 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
-              child: Screenshot(
-                controller: _screenshotController,
-                child: RepaintBoundary(
-                  key: _repaintBoundaryKey,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Render all images
-                      ...List.generate(_selectedImages.length, (index) {
-                        // If active, use PhotoEditor
-                        if (index == _activeImageIndex) {
-                          return PhotoEditor(
-                            key: ValueKey('editor_$index'),
-                            imageFile: _selectedImages[index],
-                            controller: _controllers[index],
-                            backgroundColor: Colors.transparent,
-                          );
-                        }
-                        // If inactive, use Transform to show the image in its last edited state
-                        return Container(
-                          color: Colors.transparent,
-                          child: Transform(
-                            transform: _controllers[index].value,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox.expand(
-                              child: Image.file(
-                                _selectedImages[index],
-                                fit: BoxFit.contain,
+              child: Stack(
+                children: [
+                  // Screenshot area with images and template
+                  Screenshot(
+                    controller: _screenshotController,
+                    child: RepaintBoundary(
+                      key: _repaintBoundaryKey,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Render all images
+                          ...List.generate(_selectedImages.length, (index) {
+                            // If active, use PhotoEditor
+                            if (index == _activeImageIndex) {
+                              return PhotoEditor(
+                                key: ValueKey('editor_$index'),
+                                imageFile: _selectedImages[index],
+                                controller: _controllers[index],
+                                backgroundColor: Colors.transparent,
+                              );
+                            }
+                            // If inactive, use Transform to show the image in its last edited state
+                            return Container(
+                              color: Colors.transparent,
+                              child: Transform(
+                                transform: _controllers[index].value,
+                                alignment: Alignment.topLeft,
+                                child: SizedBox.expand(
+                                  child: Image.file(
+                                    _selectedImages[index],
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                               ),
-                            ),
+                            );
+                          }),
+                          
+                          // Template overlay (top layer)
+                          // Template overlay (top layer) - Wrapped in IgnorePointer to allow gestures to pass through
+                          IgnorePointer(
+                            child: widget.template.isCustom && widget.template.filePath != null
+                                ? Image.file(
+                                    File(widget.template.filePath!),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.transparent,
+                                        child: Center(
+                                          child: Text(
+                                            'Error loading template',
+                                            style: TextStyle(
+                                              color: Colors.red.shade300,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Image.asset(
+                                    widget.template.assetPath,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.transparent,
+                                        child: Center(
+                                          child: Text(
+                                            'Template not found',
+                                            style: TextStyle(
+                                              color: Colors.red.shade300,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                           ),
-                        );
-                      }),
-                      
-                      // Template overlay (top layer)
-                      // Template overlay (top layer) - Wrapped in IgnorePointer to allow gestures to pass through
-                      IgnorePointer(
-                        child: widget.template.isCustom && widget.template.filePath != null
-                            ? Image.file(
-                                File(widget.template.filePath!),
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.transparent,
-                                    child: Center(
-                                      child: Text(
-                                        'Error loading template',
-                                        style: TextStyle(
-                                          color: Colors.red.shade300,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )
-                            : Image.asset(
-                                widget.template.assetPath,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.transparent,
-                                    child: Center(
-                                      child: Text(
-                                        'Template not found',
-                                        style: TextStyle(
-                                          color: Colors.red.shade300,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  
+                  // Zoom Control buttons overlay (outside screenshot, on top of template)
+                  Positioned(
+                    right: AppConstants.spacingMedium,
+                    top: AppConstants.spacingMedium,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Zoom In
+                        _buildControlButton(
+                          icon: Icons.add,
+                          onPressed: _zoomIn,
+                          tooltip: 'Zoom In',
+                        ),
+                        const SizedBox(height: AppConstants.spacingSmall),
+                        
+                        // Zoom Out
+                        _buildControlButton(
+                          icon: Icons.remove,
+                          onPressed: _zoomOut,
+                          tooltip: 'Zoom Out',
+                        ),
+                        const SizedBox(height: AppConstants.spacingSmall),
+                        
+                        // Reset
+                        _buildControlButton(
+                          icon: Icons.refresh,
+                          onPressed: _resetView,
+                          tooltip: 'Reset',
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Scale indicator (outside screenshot, on top of template)
+                  Positioned(
+                    left: AppConstants.spacingMedium,
+                    bottom: AppConstants.spacingMedium,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.spacingMedium,
+                        vertical: AppConstants.spacingSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
+                      ),
+                      child: Text(
+                        '${(_getCurrentScale() * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -595,6 +699,35 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Build a control button for zoom controls
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: AppConstants.iconSizeMedium,
+            ),
+          ),
         ),
       ),
     );

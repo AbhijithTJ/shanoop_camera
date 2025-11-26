@@ -75,82 +75,20 @@ class _PhotoEditorState extends State<PhotoEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Interactive viewer for free pan/zoom
-        Container(
-          color: widget.backgroundColor,
-          child: InteractiveViewer(
-            transformationController: _controller,
-            boundaryMargin: const EdgeInsets.all(double.infinity), // Allow moving anywhere
-            minScale: 0.1,
-            maxScale: 5.0,
-            child: SizedBox.expand(
-              child: Image.file(
-                widget.imageFile,
-                fit: BoxFit.contain, // Show full image, user can zoom to cover
-              ),
-            ),
+    return Container(
+      color: widget.backgroundColor,
+      child: InteractiveViewer(
+        transformationController: _controller,
+        boundaryMargin: const EdgeInsets.all(double.infinity), // Allow moving anywhere
+        minScale: 0.1,
+        maxScale: 5.0,
+        child: SizedBox.expand(
+          child: Image.file(
+            widget.imageFile,
+            fit: BoxFit.contain, // Show full image, user can zoom to cover
           ),
         ),
-        
-        // Control buttons overlay
-        Positioned(
-          right: AppConstants.spacingMedium,
-          bottom: AppConstants.spacingMedium,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Zoom In
-              _buildControlButton(
-                icon: Icons.add,
-                onPressed: _zoomIn,
-                tooltip: 'Zoom In',
-              ),
-              const SizedBox(height: AppConstants.spacingSmall),
-              
-              // Zoom Out
-              _buildControlButton(
-                icon: Icons.remove,
-                onPressed: _zoomOut,
-                tooltip: 'Zoom Out',
-              ),
-              const SizedBox(height: AppConstants.spacingSmall),
-              
-              // Reset
-              _buildControlButton(
-                icon: Icons.refresh,
-                onPressed: _resetView,
-                tooltip: 'Reset',
-              ),
-            ],
-          ),
-        ),
-        
-        // Scale indicator
-        Positioned(
-          left: AppConstants.spacingMedium,
-          bottom: AppConstants.spacingMedium,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppConstants.spacingMedium,
-              vertical: AppConstants.spacingSmall,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
-            ),
-            child: Text(
-              '${(_currentScale * 100).toInt()}%',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
