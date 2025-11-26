@@ -6,11 +6,15 @@ import '../utils/constants.dart';
 class PhotoEditor extends StatefulWidget {
   final File imageFile;
   final ValueChanged<Matrix4>? onPhotoChanged;
+  final TransformationController? controller;
+  final Color backgroundColor;
 
   const PhotoEditor({
     super.key,
     required this.imageFile,
     this.onPhotoChanged,
+    this.controller,
+    this.backgroundColor = Colors.black,
   });
 
   @override
@@ -20,12 +24,18 @@ class PhotoEditor extends StatefulWidget {
 class _PhotoEditorState extends State<PhotoEditor> {
   late TransformationController _controller;
   double _currentScale = 1.0;
+  bool _isInternalController = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TransformationController()
-      ..addListener(_onTransformationChanged);
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+    } else {
+      _controller = TransformationController();
+      _isInternalController = true;
+    }
+    _controller.addListener(_onTransformationChanged);
   }
 
   void _onTransformationChanged() {
@@ -40,7 +50,10 @@ class _PhotoEditorState extends State<PhotoEditor> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.removeListener(_onTransformationChanged);
+    if (_isInternalController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
@@ -66,7 +79,7 @@ class _PhotoEditorState extends State<PhotoEditor> {
       children: [
         // Interactive viewer for free pan/zoom
         Container(
-          color: Colors.black,
+          color: widget.backgroundColor,
           child: InteractiveViewer(
             transformationController: _controller,
             boundaryMargin: const EdgeInsets.all(double.infinity), // Allow moving anywhere

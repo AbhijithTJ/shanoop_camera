@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:screenshot/screenshot.dart';
 import '../models/template_model.dart';
 import '../services/image_picker_service.dart';
@@ -35,7 +36,9 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
   final ScreenshotController _screenshotController = ScreenshotController();
   
   // State
-  File? _selectedImage;
+  List<File> _selectedImages = [];
+  int _activeImageIndex = 0;
+  List<TransformationController> _controllers = [];
   bool _isProcessing = false;
   bool _isSaving = false;
   bool _isSharing = false;
@@ -52,24 +55,127 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
     });
   }
 
-  /// Pick image from gallery
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Pick images from gallery
   Future<void> _pickImage() async {
     try {
-      final File? image = await _imagePickerService.pickImageFromGallery();
+      final List<File> images = await _imagePickerService.pickMultipleImages();
       
-      if (image != null) {
+      if (images.isNotEmpty) {
         setState(() {
-          _selectedImage = image;
+          // If this is the first time, we replace the empty state
+          // If we already have images, we append
+          final int startIndex = _selectedImages.length;
+          
+          for (var image in images) {
+            _selectedImages.add(image);
+            _controllers.add(TransformationController());
+          }
+          
+          // If we added new images, switch to the first new one
+          if (_selectedImages.length == images.length) {
+            _activeImageIndex = 0;
+          } else {
+            _activeImageIndex = startIndex;
+          }
         });
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to pick image: ${e.toString()}');
+      _showErrorSnackBar('Failed to pick images: ${e.toString()}');
+    }
+  }
+
+  /// Delete the image at the specified index
+  Future<void> _deleteImage(int index) async {
+    if (_selectedImages.isEmpty) return;
+    
+    // Show confirmation dialog
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Image'),
+          content: const Text('Are you sure you want to remove this image?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: AppConstants.errorColor,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _selectedImages.removeAt(index);
+        _controllers[index].dispose();
+        _controllers.removeAt(index);
+        
+        // Adjust active index if needed
+        if (_selectedImages.isEmpty) {
+          _activeImageIndex = 0;
+        } else if (_activeImageIndex >= _selectedImages.length) {
+          _activeImageIndex = _selectedImages.length - 1;
+        } else if (index < _activeImageIndex) {
+          _activeImageIndex--;
+        }
+      });
+    }
+  }
+
+  /// Crop the currently active image
+  Future<void> _cropImage() async {
+    if (_selectedImages.isEmpty) return;
+    
+    final File activeImage = _selectedImages[_activeImageIndex];
+    
+    try {
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: activeImage.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Image',
+            toolbarColor: AppConstants.primaryColor,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(
+            title: 'Crop Image',
+          ),
+        ],
+      );
+
+      if (croppedFile != null) {
+        setState(() {
+          _selectedImages[_activeImageIndex] = File(croppedFile.path);
+          // Reset controller for this image as dimensions might have changed
+          _controllers[_activeImageIndex].value = Matrix4.identity();
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to crop image: ${e.toString()}');
     }
   }
 
   /// Capture and save the merged image
   Future<void> _saveImage() async {
-    if (_selectedImage == null) {
+    if (_selectedImages.isEmpty) {
       _showErrorSnackBar(AppConstants.msgSelectImage);
       return;
     }
@@ -111,7 +217,7 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
 
   /// Share the merged image
   Future<void> _shareImage() async {
-    if (_selectedImage == null) {
+    if (_selectedImages.isEmpty) {
       _showErrorSnackBar(AppConstants.msgSelectImage);
       return;
     }
@@ -187,19 +293,25 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Change photo button
-          if (_selectedImage != null)
+          // Crop button
+          if (_selectedImages.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.photo_library),
-              tooltip: 'Change Photo',
-              onPressed: _pickImage,
+              icon: const Icon(Icons.crop),
+              tooltip: 'Crop Active Photo',
+              onPressed: _cropImage,
             ),
+          // Add photo button
+          IconButton(
+            icon: const Icon(Icons.add_photo_alternate),
+            tooltip: 'Add Photo',
+            onPressed: _pickImage,
+          ),
         ],
       ),
-      body: _selectedImage == null
+      body: _selectedImages.isEmpty
           ? _buildEmptyState()
           : _buildEditorView(),
-      bottomNavigationBar: _selectedImage != null
+      bottomNavigationBar: _selectedImages.isNotEmpty
           ? _buildBottomBar()
           : null,
     );
@@ -264,7 +376,7 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
               const SizedBox(width: AppConstants.spacingSmall),
               Expanded(
                 child: Text(
-                  'Pinch to zoom, drag to move your photo. The template will overlay on top.',
+                  'Select a photo below to edit. Pinch to zoom, drag to move.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppConstants.primaryColor.withOpacity(0.9),
@@ -299,10 +411,32 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // User's photo with zoom and pan (bottom layer)
-                      PhotoEditor(
-                        imageFile: _selectedImage!,
-                      ),
+                      // Render all images
+                      ...List.generate(_selectedImages.length, (index) {
+                        // If active, use PhotoEditor
+                        if (index == _activeImageIndex) {
+                          return PhotoEditor(
+                            key: ValueKey('editor_$index'),
+                            imageFile: _selectedImages[index],
+                            controller: _controllers[index],
+                            backgroundColor: Colors.transparent,
+                          );
+                        }
+                        // If inactive, use Transform to show the image in its last edited state
+                        return Container(
+                          color: Colors.transparent,
+                          child: Transform(
+                            transform: _controllers[index].value,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox.expand(
+                              child: Image.file(
+                                _selectedImages[index],
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
                       
                       // Template overlay (top layer)
                       // Template overlay (top layer) - Wrapped in IgnorePointer to allow gestures to pass through
@@ -350,6 +484,72 @@ class _TemplateOverlayScreenState extends State<TemplateOverlayScreen> {
                 ),
               ),
             ),
+          ),
+        ),
+
+        // Image Selector
+        Container(
+          height: 80,
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _selectedImages.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final isSelected = index == _activeImageIndex;
+              return GestureDetector(
+                onTap: () => setState(() => _activeImageIndex = index),
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        border: isSelected 
+                            ? Border.all(color: AppConstants.primaryColor, width: 3) 
+                            : Border.all(color: Colors.grey.shade300, width: 1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: Image.file(
+                          _selectedImages[index],
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    // Delete button
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: GestureDetector(
+                        onTap: () => _deleteImage(index),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: AppConstants.errorColor,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
