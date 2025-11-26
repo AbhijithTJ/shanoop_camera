@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     
     <application
-        android:label="shanoop_camera"
+        android:label="Vintage fiesta"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

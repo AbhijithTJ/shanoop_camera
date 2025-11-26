@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'features/splash/splash_screen.dart';
 import 'features/template_overlay/screens/template_selection_screen.dart';
 import 'features/template_overlay/utils/constants.dart';
 
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const HomeScreen(),
+      home: SplashScreen(),
     );
   }
 }
